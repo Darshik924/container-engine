@@ -1,8 +1,5 @@
 package main
 
-// test
-// go run engine.go run ls
-
 import (
 	"fmt"
 	"os"
@@ -27,6 +24,7 @@ func main()  {
 func Child()  {
 	// child goes here
 	fmt.Printf("Child envorioment with PID: %d\n", os.Getpid())
+
 	// Container Now believes its PID is 1 but it is actually something else for the Host machine
 
 	/* Child feels like it is isolated due to NEW PID, NETWORK isolation, UTS Namespace it cannot really see so it is isolated */
@@ -59,7 +57,6 @@ func Parent()  {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUSER | syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS,
 	}
-	/* CLONE_NEWUSER is the only namespace flag that doesn't require root. Once the child is inside a user namespace, it gets CAP_SYS_ADMIN within that namespace, which is enough to create the other namespaces (mount, PID, net, etc.) */
 
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("error: could not start the child execution: %v\n", err)
