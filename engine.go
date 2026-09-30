@@ -2,18 +2,24 @@ package main
 
 import (
 	"container-engine/cgroup"
-	"golang.org/x/sys/unix"
 	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 ) 
 
-const rootfs = "~/Dev/container-engine"
+const rootfs = "/home/darshik/Dev/container-engine"
 const MemoryLim = 50 * 1024 * 1024 // that is 50MBs
 const CPULim = 50 // 50 percentage 
 
 func main()  {
+	if !(os.Getenv("SUDO_USER") != "") {
+		fmt.Printf("fatal: please run as sudo user\n")
+		os.Exit(1)
+	}
+
 	if len(os.Args) < 2 {
 		fmt.Printf("incorrect usage: go run engine.go run <command>\n")
 		os.Exit(1)
@@ -43,12 +49,10 @@ func Child() error {
 
 	/* Child feels like it is isolated due to NEW PID, NETWORK isolation, UTS Namespace it cannot really see so it is isolated */
 	if err := syscall.Chroot(rootfs); err != nil {
-		fmt.Printf("chroot: %v\n", err)
 		return err
 	}
 
 	if err := os.Chdir("/"); err != nil {
-		fmt.Printf("chdir: %v\n", err)
 		return err 	
 	}
 	// Child Believes that its Directory is /
@@ -65,37 +69,36 @@ func Child() error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("could not run the child command: %w", err)
+		return fmt.Errorf("could not run the child command: %w\n", err)
 	}
 	return nil
 }
 
-func Parent() error {
+func Parent() (err error) {
 	// parent execution here
 	if len(os.Args) < 3 {
 		return fmt.Errorf("usage: go run engine.go run <command> [args...]")
 	}
-
 	fmt.Printf("Parent with PID: %d\n", os.Getpid())
 
-	pPid := os.Getpid()
-	// the parent process ID
-	cg := cgroup.GetNewManager("mini-cont")
+	cg := cgroup.GetNewManager("cont-t-2")
 
 	if err := cg.Create(); err != nil {
 		// This creates the directory inside the kernel managed system /sys/fs/cgroup
 		return err
 	}
 
-	// Add a process is actually writing the process ID in cgroup.procs
-	if err := cg.AddProcess(pPid); err != nil {
-		return err
-	}
+	defer func() {
+		if cleanupErr := cg.DeleteGroup(); cleanupErr != nil && err == nil {
+			err = cleanupErr
+		}
+	}()
 
 	childArgs := append([]string{"child"}, os.Args[2:]...)
 	cmd := exec.Command("/proc/self/exe", childArgs...)
 	// Load the child process arguments and exec the required command
 
+	// Redirect the file descriptors
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -111,13 +114,20 @@ func Parent() error {
 		return err
 	}
 
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("error: could not start the child execution: %v\n", err)
 	}
 
-	// executed here - remove the cgroup 
-	if err := cg.DeleteGroup(); err != nil {
+	// Keep the parent outside the cgroup so it can remove the group after the child exits.
+	if err := cg.AddProcess(cmd.Process.Pid); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
 		return err
 	}
+
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("error: child execution failed: %w", err)
+	}
+
 	return nil
 }

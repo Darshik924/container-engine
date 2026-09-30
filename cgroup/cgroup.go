@@ -41,7 +41,7 @@ func (m *ControlManager) CheckExists() error {
 	return nil
 }
 
-// cg.Create will perform the sudo mkdir /sys/fs/cgroup/container-name
+// cg.Create will perform the mkdir /sys/fs/cgroup/container-name
 func (m *ControlManager) Create() error {
 	if err := os.Mkdir(m.path, 0755); err != nil {
 		return fmt.Errorf("error: could not create a control group (directory inside the /sys/fs/cgroup ): %w\n", err)
