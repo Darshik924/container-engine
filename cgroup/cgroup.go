@@ -86,4 +86,4 @@ func (m *ControlManager) DeleteGroup() error {
 // Important Method to add a Process in the container
 func (m *ControlManager) AddProcess(pid int) error {
 	return m.WriteFile("cgroup.procs",strconv.Itoa(pid))
-}
+}	
