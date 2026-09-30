@@ -2,12 +2,14 @@ package main
 
 import (
 	"container-engine/cgroup"
+	"golang.org/x/sys/unix"
 	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
 ) 
 
+const rootfs = "~/Dev/container-engine"
 const MemoryLim = 50 * 1024 * 1024 // that is 50MBs
 const CPULim = 50 // 50 percentage 
 
@@ -40,6 +42,19 @@ func Child() error {
 	// Container Now believes its PID is 1 but it is actually something else for the Host machine
 
 	/* Child feels like it is isolated due to NEW PID, NETWORK isolation, UTS Namespace it cannot really see so it is isolated */
+	if err := syscall.Chroot(rootfs); err != nil {
+		fmt.Printf("chroot: %v\n", err)
+		return err
+	}
+
+	if err := os.Chdir("/"); err != nil {
+		fmt.Printf("chdir: %v\n", err)
+		return err 	
+	}
+
+	os.MkdirAll("/proc", 0555)
+	unix.Mount("proc", "/proc", "proc", 0, "")
+
 	targetCmd := os.Args[2]
 	targetArgs := os.Args[3:]
 
@@ -71,6 +86,7 @@ func Parent() error {
 		return err
 	}
 
+	// Add a process is actually writing the process ID in cgroup.procs
 	if err := cg.AddProcess(pPid); err != nil {
 		return err
 	}

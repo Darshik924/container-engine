@@ -22,3 +22,10 @@
                        │
                        ▼
                Process is limited
+
+
+
+cg.AddProcess(pPid) → parent joins mini-cont cgroup
+cmd.Run() → forks child → child inherits cgroup membership
+CLONE_NEW* flags → child gets new PID/UTS/net/mnt/user namespaces
+The CLONE_NEWPID flag does not affect cgroup membership — namespaces and cgroups are independent mechanisms. The child is in the cgroup regardless.
