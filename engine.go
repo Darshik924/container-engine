@@ -8,9 +8,12 @@ import (
 	"syscall"
 ) 
 
+const MemoryLim = 50 * 1024 * 1024 // that is 50MBs
+const CPULim = 50 // 50 percentage 
+
 func main()  {
 	if len(os.Args) < 2 {
-		fmt.Printf("error usage: go run engine.go run <command>\n")
+		fmt.Printf("incorrect usage: go run engine.go run <command>\n")
 		os.Exit(1)
 	}
 
@@ -26,7 +29,7 @@ func main()  {
 	}
 	
 	if err != nil {
-		fmt.Println(err)
+		fmt.Print(err)
 	}
 }
 
@@ -63,14 +66,17 @@ func Parent() error {
 	// the parent process ID
 	cg := cgroup.GetNewManager("mini-cont")
 
+	if err := cg.Create(); err != nil {
+		// This creates the directory inside the kernel managed system /sys/fs/cgroup
+		return err
+	}
+
 	if err := cg.AddProcess(pPid); err != nil {
 		return err
 	}
 
-	
-
-	args := append([]string{"child"}, os.Args[2:]...)
-	cmd := exec.Command("/proc/self/exe", args...)
+	childArgs := append([]string{"child"}, os.Args[2:]...)
+	cmd := exec.Command("/proc/self/exe", childArgs...)
 	// Load the child process arguments and exec the required command
 
 	cmd.Stdin = os.Stdin
@@ -81,8 +87,20 @@ func Parent() error {
 		Cloneflags: syscall.CLONE_NEWUSER | syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS,
 	}
 
+	if err := cg.SetMemoryLimit(MemoryLim); err != nil {
+		return err
+	}
+	if err := cg.SetCPU(CPULim); err != nil {
+		return err
+	}
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error: could not start the child execution: %v\n", err)
+	}
+
+	// executed here - remove the cgroup 
+	if err := cg.DeleteGroup(); err != nil {
+		return err
 	}
 	return nil
 }
