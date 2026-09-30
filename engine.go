@@ -51,6 +51,7 @@ func Child() error {
 		fmt.Printf("chdir: %v\n", err)
 		return err 	
 	}
+	// Child Believes that its Directory is /
 
 	os.MkdirAll("/proc", 0555)
 	unix.Mount("proc", "/proc", "proc", 0, "")
