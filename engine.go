@@ -28,6 +28,7 @@ func main() {
 	}
 	
 	if err != nil {
-		fmt.Print(err)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }

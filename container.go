@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -102,6 +103,17 @@ func Parent() (err error) {
 		return err
 	}
 
+	max, err := cg.ReadFile("memory.max")
+	if err != nil {
+		return err
+	}
+
+	if config := strings.TrimSpace(string(max)); config != strconv.FormatInt(MemoryLim, 10) {
+		return fmt.Errorf("memory.max is %s, expected %d", config, MemoryLim)
+	}
+
+	fmt.Printf("cgroup memory.max: %s", max)
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("error: could not start the child execution: %v\n", err)
 	}
@@ -113,8 +125,39 @@ func Parent() (err error) {
 		return err
 	}
 
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("error: child execution failed: %w", err)
+	procs, err := cg.ReadFile("cgroup.procs")
+	if err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return err
+	}
+
+	isChild := false
+	for _, pid := range strings.Fields(string(procs)) {
+		if pid == strconv.Itoa(cmd.Process.Pid) {
+			isChild = true
+			break
+		}
+	}
+
+	if !isChild {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return fmt.Errorf("child PID %d is not in cgroup %q", cmd.Process.Pid, cg.Name)
+	}
+	fmt.Printf("child PID %d is in cgroup\n", cmd.Process.Pid)
+
+	waitErr := cmd.Wait()
+	events, err := cg.ReadFile("memory.events")
+	
+	if err != nil {
+		return err
+	}
+	fmt.Printf("cgroup memory.events:\n%s", events)
+
+
+	if waitErr != nil {
+		return fmt.Errorf("error: child execution failed: %w", waitErr)
 	}
 
 	return nil

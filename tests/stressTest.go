@@ -9,7 +9,7 @@ import (
 func main() {
     time.Sleep(time.Second) 
    
-	Sample()
+	// Sample()
     Stress()
 }
 
@@ -26,8 +26,8 @@ func Stress()  {
 
         chunks = append(chunks, chunk)
 
-        fmt.Printf("memory at %d MiB\n", alloc+1)
-        time.Sleep(100 * time.Millisecond)
+        fmt.Printf("memory at %d MiB\n", (alloc>>20)+1)
+        time.Sleep(30 * time.Millisecond)
     }
 
     fmt.Println("finished: the 50 MiB limit did not stop this workload")

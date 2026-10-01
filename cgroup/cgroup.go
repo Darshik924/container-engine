@@ -59,6 +59,15 @@ func (m *ControlManager) WriteFile(fname string, value string) error {
 	return nil
 }
 
+func (m *ControlManager) ReadFile(fname string) ([]byte, error) {
+	pathh := filepath.Join(m.path, fname)
+	data, err := os.ReadFile(pathh)
+	if err != nil {
+		return nil, fmt.Errorf("fatal: could not read %s: %w", pathh, err)
+	}
+	return data, nil
+}
+
 // usage: cg.SetMemoryLimit(50 * 1024 * 1024) --->> That is 50 MBs
 func (m *ControlManager) SetMemoryLimit(bytes int64) error {
 	return m.WriteFile("memory.max",strconv.FormatInt(bytes, 10),)
