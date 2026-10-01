@@ -12,7 +12,7 @@ func Sample()  {
 	}
 
 	cnt := 0
-	for _, i:= range nums {
+	for _, i := range nums {
 		for k:=31; k>=0; k-- {
 			if (1 << k) & i >= 1 {
 				cnt++;

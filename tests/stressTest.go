@@ -7,11 +7,13 @@ import (
 )
 
 func main() {
-    time.Sleep(time.Second) // Give the parent time to move us into the cgroup.
+    time.Sleep(time.Second) 
    
 	Sample()
+    Stress()
 }
-func stress()  {
+
+func Stress()  {
 	var chunks [][]byte
     pageSize := os.Getpagesize()
 
