@@ -23,7 +23,7 @@ func Child() error {
 
 	/* Child feels like it is isolated due to NEW PID, NETWORK isolation, UTS Namespace it cannot really see so it is isolated */
 	if err := syscall.Chroot(rootfs); err != nil {
-		return err
+		return fmt.Errorf("chroot to %q: %w", rootfs, err)
 	}
 
 	if err := os.Chdir("/"); err != nil {
@@ -64,7 +64,7 @@ func Parent() (err error) {
 	}
 	fmt.Printf("Parent with PID: %d\n", os.Getpid())
 
-	cg := cgroup.GetNewManager("cont-t-3")
+	cg := cgroup.GetNewManager("contain")
 
 	if err := cg.Create(); err != nil {
 		// This creates the directory inside the kernel managed system /sys/fs/cgroup
@@ -88,6 +88,8 @@ func Parent() (err error) {
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUSER | syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS,
+		Credential: &syscall.Credential{Uid: 0, Gid: 0},
+		/* The child was reaching chroot but getting EPERM, so the sample wasn’t starting. I updated container.go to explicitly run the child as container UID/GID 0, matching the existing namespace maps, and made chroot errors include the attempted path. */
 		UidMappings: []syscall.SysProcIDMap{{ContainerID: 0, HostID: uid, Size: 1}},
 		GidMappings: []syscall.SysProcIDMap{{ContainerID: 0, HostID: gid, Size: 1}},
 		GidMappingsEnableSetgroups: false,
