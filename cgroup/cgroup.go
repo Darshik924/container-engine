@@ -15,7 +15,7 @@ type ControlManager struct {
 	Name string
 }
 
-// cg.GetNewManager("container-name") will establish a cg state for us
+// cg.GetNewManager(cname) will establish a cg state for us
 func GetNewManager(cname string) *ControlManager {
 	return &ControlManager{
 		root: DefaultRoot,

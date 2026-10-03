@@ -102,11 +102,11 @@ func Parent() (err error) {
 	if err := cg.SetCPU(CPULim); err != nil {
 		return err
 	}
-
 	if err := cg.SetSwapLimit("0"); err != nil {
 		return err
 	}
 
+	// Start the process directly inside cgroup beforehand to make the logically flow correct instead of starting it first and then moving it inside
 	cgDir, err := os.Open(cgroup.DefaultRoot + "/" + cname)
 	if err != nil {
 		return err
@@ -115,6 +115,7 @@ func Parent() (err error) {
 
 	cmd.SysProcAttr.UseCgroupFD = true
 	cmd.SysProcAttr.CgroupFD = int(cgDir.Fd())
+	// File descriptor for the cgroup is dir Fd
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("error: could not start the child execution: %v\n", err)
