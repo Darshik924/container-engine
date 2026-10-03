@@ -59,6 +59,11 @@ func (m *ControlManager) WriteFile(fname string, value string) error {
 	return nil
 }
 
+// If the host has swap, your process just gets pushed to swap and keeps running, slowly. Disable swap for the group right after setting the memory limit:
+func (m *ControlManager) SetSwapLimit(val string) error {
+	return m.WriteFile("memory.swap.max", val)
+}
+
 func (m *ControlManager) ReadFile(fname string) ([]byte, error) {
 	pathh := filepath.Join(m.path, fname)
 	data, err := os.ReadFile(pathh)
