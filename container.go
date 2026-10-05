@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"syscall"
 
@@ -12,28 +13,124 @@ import (
 )
 
 const rootfs = "/home/darshik/Dev/container-engine"
+const StateDir = "/home/darshik/Dev/container-engine"
+/* rootfs should change here to be the alpine image */
 const MemoryLim = 50 * 1024 * 1024 // that is 50MBs
 const CPULim = 50 // 50 percentage 
-const cname = "contain2"
+const cname = "contain3"
 
-func Child() error {
+func Child() (retErr error) {
 	// child goes here
 	fmt.Printf("Child envorioment with PID: %d\n", os.Getpid())
 
 	// Container Now believes its PID is 1 but it is actually something else for the Host machine
+	containerDir := filepath.Join(StateDir, cname)
 
+    upper := filepath.Join(containerDir, "upperdir")
+    work := filepath.Join(containerDir, "workdir")
+    merged := filepath.Join(containerDir, "merged")
+
+    lower := os.Getenv("ALPINE_ROOT")
+    if lower == "" {
+        lower = filepath.Join(StateDir, "images", "lowerdir")
+    }
+    lower, err := filepath.Abs(lower)
+    if err != nil {
+        return fmt.Errorf("resolve Alpine root path: %w", err)
+    }
+
+    for _, dir := range []string{upper, work, merged} {
+        if err := os.MkdirAll(dir, 0755); err != nil {
+            return fmt.Errorf("create directory %q: %w", dir, err)
+        }
+    }
+
+    info, err := os.Stat(lower)
+    if err != nil {
+        return fmt.Errorf("Alpine root filesystem %q not found; set ALPINE_ROOT to its extracted directory: %w", lower, err)
+    }
+    if !info.IsDir() {
+        return fmt.Errorf("Alpine root filesystem %q is not a directory", lower)
+    }
+
+	oldRoot, err := os.Open("/")
+    if err != nil {
+        return fmt.Errorf("open original root: %w", err)
+    }
+    defer oldRoot.Close()
+
+    overlayMounted := true
+    chrooted := false
+    procMounted := false
+
+	// cleanup function
+	defer func() {
+        setCleanupErr := func(err error) {
+            if err != nil && retErr == nil {
+                retErr = err
+            }
+        }
+
+        if procMounted {
+            if err := unix.Unmount("/proc", 0); err != nil {
+                setCleanupErr(fmt.Errorf("unmount /proc: %w", err))
+            }
+        }
+
+        if chrooted {
+            if err := unix.Fchdir(int(oldRoot.Fd())); err != nil {
+                setCleanupErr(fmt.Errorf("restore original directory: %w", err))
+                return
+            }
+            if err := syscall.Chroot("."); err != nil {
+                setCleanupErr(fmt.Errorf("restore original root: %w", err))
+                return
+            }
+            chrooted = false
+            if err := os.Chdir("/"); err != nil {
+                setCleanupErr(fmt.Errorf("change to original root: %w", err))
+                return
+            }
+        }
+
+        if overlayMounted {
+            if err := unix.Unmount(merged, 0); err != nil {
+                setCleanupErr(fmt.Errorf("unmount overlay: %w", err))
+            }
+        }
+    }()
+
+	if err := unix.Mount("", "/", "", unix.MS_REC|unix.MS_PRIVATE, ""); err != nil {
+        return fmt.Errorf("make mounts private: %w", err)
+    }
+
+	opts := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", lower, upper, work)
+    if err := unix.Mount("overlay", merged, "overlay", 0, opts); err != nil {
+        return fmt.Errorf("mount overlay: %w", err)
+    }
+    overlayMounted = true
+    
 	/* Child feels like it is isolated due to NEW PID, NETWORK isolation, UTS Namespace it cannot really see so it is isolated */
-	if err := syscall.Chroot(rootfs); err != nil {
+	if err := syscall.Chroot(merged); err != nil {
 		return fmt.Errorf("chroot to %q: %w", rootfs, err)
 	}
+    chrooted = true
 
 	if err := os.Chdir("/"); err != nil {
 		return err 	
 	}
 	// Child Believes that its Directory is /
 
-	os.MkdirAll("/proc", 0555)
-	unix.Mount("proc", "/proc", "proc", 0, "")
+	if err := os.MkdirAll("/proc", 0555); err != nil {
+        return fmt.Errorf("create /proc: %w", err)
+    }
+    if err := unix.Mount("proc", "/proc", "proc", 0, ""); err != nil {
+        return fmt.Errorf("mount /proc: %w", err)
+    }
+	procMounted = true
+	if len(os.Args) < 3 {
+        return fmt.Errorf("usage: run <command> [args...]")
+    }
 
 	targetCmd := os.Args[2]
 	targetArgs := os.Args[3:]
@@ -46,8 +143,11 @@ func Child() error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("could not run the child command: %w\n", err)
 	}
+	
+    defer os.RemoveAll(containerDir) // cleanup all directories 
 	return nil
 }
+
 
 func Parent() (err error) {
 	// parent execution here

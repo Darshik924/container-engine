@@ -9,8 +9,8 @@ import (
 func main() {
     time.Sleep(time.Second) 
    
-	// Sample()
-    Stress()
+	Sample()
+    // Stress()
 }
 
 func Stress()  {

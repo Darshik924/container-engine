@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 ) 
@@ -31,4 +33,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+/* Gives a random Hexadecimal string */
+func getRandomHex() string {
+	bytes := make([]byte, 16) // 16 bytes → 32-char hex string
+    if _, err := rand.Read(bytes); err != nil {
+        panic(err)
+    }
+    return hex.EncodeToString(bytes)
 }
