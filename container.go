@@ -31,7 +31,7 @@ func Child() (retErr error) {
 
     lowerdir := os.Getenv("ALPINE_ROOT")
     if lowerdir == "" {
-        lowerdir = filepath.Join(rootfs, "images", "lowerdir")
+        lowerdir = filepath.Join(rootfs, "images", "alpine")
 		// Default
     }
     lowerdir, err := filepath.Abs(lowerdir)
