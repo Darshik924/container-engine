@@ -121,6 +121,7 @@ func Child() (retErr error) {
 	if err := os.MkdirAll("/proc", 0555); err != nil {
         return fmt.Errorf("create /proc error: %w", err)
     }
+	// Mount a fresh proc (process) fs inside the new container's /proc, else the container inherits the host's proc: ps shows all the processes
     if err := unix.Mount("proc", "/proc", "proc", 0, ""); err != nil {
         return fmt.Errorf("mount /proc error: %w", err)
     }
