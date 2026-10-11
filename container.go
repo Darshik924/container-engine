@@ -34,10 +34,6 @@ func Child() (retErr error) {
         lowerdir = filepath.Join(rootfs, "images", "alpine")
 		// Default
     }
-    lowerdir, err := filepath.Abs(lowerdir)
-    if err != nil {
-        return fmt.Errorf("resolve Alpine root path: %w", err)
-    }
 
 	/* Make the directories */
     for _, dir := range []string{upper, work, merged} {

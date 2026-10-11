@@ -1,65 +1,96 @@
-/_ CLONE_NEWUSER is the only namespace flag that doesn't require root. Once the child is inside a user namespace, it gets CAP_SYS_ADMIN within that namespace, which is enough to create the other namespaces (mount, PID, net, etc.) _/
+# Container Engine
 
-                 Your Go program
-                       │
-                       ▼
-              Create cgroup
-                       │
-              ┌────────┴────────┐
-              ▼                 ▼
-        memory.max          cpu.max
-          100 MB              50%
-              │                 │
-              └────────┬────────┘
-                       ▼
-                 Start process
-                       │
-                       ▼
-                 Get its PID
-                       │
-                       ▼
-              cgroup.procs
-                       │
-                       ▼
-               Process is limited
+A small Linux container runtime built in Go to explore how container isolation works at the kernel level. This project shows a minimum container implementation that uses Linux namespaces, mount management, chroot, overlay filesystem layering, and cgroup resource limits.
 
+## Overview
 
+Project creates a lightweight isolated environment for running a process in a sandbox root fs. It is designed as an educational prototype only.
 
-cg.AddProcess(pPid) → parent joins mini-cont cgroup
-cmd.Run() → forks child → child inherits cgroup membership
-CLONE_NEW* flags → child gets new PID/UTS/net/mnt/user namespaces
-The CLONE_NEWPID flag does not affect cgroup membership — namespaces and cgroups are independent mechanisms. The child is in the cgroup regardless.
+The implementation includes:
 
+- Process isolation with PID, network, UTS, mount, and user namespaces
+- A chrooted root filesystem using an overlay mount
+- A mounted proc filesystem inside the container
+- Resource limits via cgroup v2 for memory, CPU, and swap
+- A simple CLI to launch commands inside the container
 
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. CREATE                                                        │
-│    mkdir upper/ work/ merged/                                    │
-│    (lowerdir already exists from image extraction)               │
-├─────────────────────────────────────────────────────────────────┤
-│ 2. MOUNT                                                         │
-│    mount -t overlay overlay                                      │
-│      -o lowerdir=/images/alpine/layer2:/images/alpine/layer1,   │
-│         upperdir=/containers/abc123/upper,                       │
-│         workdir=/containers/abc123/work                          │
-│      /containers/abc123/merged                                   │
-│                                                                  │
-│    Now merged/ shows the full Alpine filesystem.                 │
-├─────────────────────────────────────────────────────────────────┤
-│ 3. RUN                                                           │
-│    • Enter new mount namespace                                   │
-│    • pivot_root (or chroot) into merged/                         │
-│    • Exec the container's entrypoint                             │
-│                                                                  │
-│    All reads → lowerdir (shared, cached)                         │
-│    All writes → upperdir (isolated, per-container)               │
-│    Atomic ops → workdir (kernel-internal)                        │
-├─────────────────────────────────────────────────────────────────┤
-│ 4. STOP / REMOVE                                                 │
-│    • Kill container process                                      │
-│    • umount /containers/abc123/merged                            │
-│    • rm -rf /containers/abc123/upper                             │
-│    • rm -rf /containers/abc123/work                              │
-│    • rm -rf /containers/abc123/merged                            │
-│                                                                  │
-│    lowerdir is untouched. Other containers are unaffected.       │
-└─────────────────────────────────────────────────────────────────┘   
+## What was implemented
+
+- A command-line entrypoint in `main.go` that dispatches to `run` and `child` modes
+- Parent/child process separation in `container.go`
+- Cgroup management logic in `cgroup/cgroup.go`
+- A base Alpine fs under `images/alpine/`
+- Configure cname in container.go and Manage overlay fs directories with that directory name.
+
+## Architecture
+
+The workflow is roughly:
+
+1. The parent process validates sudo access and creates a cgroup.
+2. A child process is spawned with Linux namespace isolation enabled.
+3. The container root is prepared with overlay mounts.
+4. The process is chrooted into the merged overlay directory.
+5. `/proc` is mounted inside the container.
+6. The target command is executed inside the isolated environment.
+
+## Project structure
+
+```text
+.
+├── main.go                  # CLI entry point
+├── container.go             # Container setup and execution logic
+├── cgroup/
+│   └── cgroup.go            # Cgroup v2 helpers
+├── images/
+│   └── alpine/              # Minimal root filesystem image
+├── contain3/                # Overlay mount working directories
+├── tests/
+│   └── tests.go             # Simple Tests written that were used during debug and memory simulation
+├── go.mod                   # Go module definition
+└── README.md                # Project documentation
+```
+
+## Prerequisites
+
+- Linux host with kernel support for namespaces and overlayfs
+- Go installed
+- Root or sudo access
+- cgroup v2 enabled on the system
+
+## Usage
+
+Run a process inside the container:
+
+```bash
+sudo go run . run /bin/sh
+```
+
+You can also run other binaries from the Alpine image, for example:
+
+```bash
+sudo go run . run /bin/ls -l /
+```
+
+You can also use the pushed binary [engine](./cmd/engine) and run this directly without go build/run
+
+```bash
+sudo ./cmd/engine run /bin/sh    # or whatever u want container to do
+```
+
+## Resource limits
+
+I have basic control limits (using /cgroup inside the kernel fs) to the container:
+
+- Memory limit: 50 MB
+- CPU limit: 50%
+- Swap limit: disabled
+
+These values are defined in `container.go` and managed via the cgroup helpers.
+
+## Notes
+
+Repo is a simple learning project for understanding how container runtimes work internally. It is not a complete, production-ready container engine and does not aim to match the complexity of Docker, containerd, or runc.
+
+## License
+
+Intended for educational use and experimentation.
