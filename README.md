@@ -14,13 +14,19 @@ The implementation includes:
 - Resource limits via cgroup v2 for memory, CPU, and swap
 - A simple CLI to launch commands inside the container
 
+## Approach 
+
+- I have a simple CLI mechanism by which the parent re executes via /proc/self/exe, using goroutines or something is not correct here since Linux only copies the single thread that called the fork(). Since Go spins many threads on startup (for garbage collection) and a Go program is always multithreaded it may lock itself.
+
+- Parent execution starts cg is created and explicit UID / GID are mapped for container to ensure the child is capable (CAP_SYS_ROOT) to chroot, mount,... . Child prepares for OverlayFS mount and executes the syscall to mount overlay
+
 ## What was implemented
 
 - A command-line entrypoint in `main.go` that dispatches to `run` and `child` modes
-- Parent/child process separation in `container.go`
-- Cgroup management logic in `cgroup/cgroup.go`
+- Parent/child process separation in `parent.go and child.go` respectively.
+- Cgroup management helpers and logic in `cgroup/cgroup.go`
 - A base Alpine fs under `images/alpine/`
-- Configure cname in container.go and Manage overlay fs directories with that directory name.
+- Configure cname in main.go and Manage overlay fs directories with that directory name.
 
 ## Architecture
 

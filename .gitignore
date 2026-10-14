@@ -1,6 +1,6 @@
 cont-t*
 .env
 
-contain2
-contain3
+contain*
+CONTAIN*
 Ref.md

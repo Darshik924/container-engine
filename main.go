@@ -7,6 +7,12 @@ import (
 	"os"
 ) 
 
+const rootfs = "/home/darshik/Dev/container-engine"
+/* rootfs should change here to be the alpine image */
+const MemoryLim = 50 * 1024 * 1024 // that is 50MBs
+const CPULim = 50 // 50 percentage 
+const cname = "CONTAIN_ME" // just a directory name 
+
 func main() {
 	if !(os.Getenv("SUDO_USER") != "") {
 		fmt.Printf("please run as sudo user\n")

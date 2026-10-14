@@ -6,13 +6,6 @@ import (
 	"time"
 )
 
-func main() {
-    time.Sleep(time.Second) 
-   
-	Sample()
-    // Stress()
-}
-
 // Simple Program that counts the number of 1 bits in 1 to 10 inclu
 func Sample()  {
 	var nums []int
